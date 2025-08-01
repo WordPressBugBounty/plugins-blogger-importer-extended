@@ -2,7 +2,7 @@
 Contributors: pipdig
 Tags: blogger, blogspot, importer
 Requires at least: 5.8
-Tested up to: 6.6
+Tested up to: 6.9
 Requires PHP: 7.0
 Stable tag: trunk
 Donate link: https://www.pipdig.co/shop/blogger-importer-plugin/
@@ -77,54 +77,45 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 
 == Changelog ==
 
+= 3.2.6 =
+* Update API URL.
+
 = 3.2.5 =
-* Release date: 07 September 2024.
 * Update API URL.
 
 = 3.2.2 =
-* Release date: 10 August 2023.
 * Include webp image file mime types from Blogger during migration.
 
 = 3.2.1 =
-* Release date: 04 January 2022.
 * Update connection test endpoint to new API.
 
 = 3.2.0 =
-* Release date: 26 November 2021.
 * Avoid duplicate pages when importing from the same blog multiple times.
 
 = 3.1.1 =
-* Release date: 01 November 2021.
 * Handle new date formatting from Blogger by using UTC as default.
 
 = 3.1.0 =
-* Release date: 08 October 2021.
 * Handle new image source format from Blogger.
 
 = 3.0.0 =
-* Release date: 28 June 2021.
 * Display title of the latest imported post during import process.
 * Simplify information when import is processing.
 * Fix an issue which with some blogspot domains.
 
 = 2.3.1 =
-* Release date: 16 Feb 2021.
 * Make sure import options are passed correctly to the API.
 
 = 2.3.0 =
-* Release date: 24 Jan 2021.
 * Show percentage progress in browser tab.
 * Better handling of Chinese characters in image file names.
 
 = 2.2.4 =
-* Release date: 20 Nov 2020.
 * WordPress 5.6 compatibility.
 
 = 2.2.3 =
-* Release date: 17 Nov 2020.
 * Allow `<a>` tags in comments.
 
 = 2.2.2 =
-* Release date: 24 July 2020.
 * Reduce delay time between import runs to 3 seconds.
 * Bump min PHP version to 7.
