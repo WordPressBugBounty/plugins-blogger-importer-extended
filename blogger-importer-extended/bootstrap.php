@@ -4,7 +4,7 @@ Plugin Name: Blogger Importer Extended
 Plugin URI: https://wordpress.org/plugins/blogger-importer-extended/
 Description: The only plugin you need to move from Blogger to WordPress. Import all your content and setup 301 redirects automatically.
 Author: pipdig
-Version: 3.2.6
+Version: 3.2.7
 Author URI: https://www.pipdig.co/
 License: GPLv2 or later
 Text Domain: blogger-importer-extended
@@ -28,14 +28,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 if (!defined('ABSPATH')) die;
 
-define('BIE_VER', '3.2.6');
+define('BIE_VER', '3.2.7');
 define('BIE_DOMAIN', 'bie.ppdg.pw');
 define('BIE_DIR', plugin_dir_path(__FILE__));
 define('BIE_PATH', plugin_dir_url(__FILE__));
 
  // Wait time between import batches
 if (!defined('BIE_WAIT_TIME')) {
-	define('BIE_WAIT_TIME', 1750);
+	define('BIE_WAIT_TIME', 1500);
 }
 
 include(BIE_DIR.'settings.php');
@@ -1334,7 +1334,7 @@ function pipdig_blogger_get_response($query_args, $cb = false) {
 	
 	$query_args = wp_parse_args($query_args, $default_args);
 	
-	$url = add_query_arg($query_args, 'https://bie.pdg.center/');
+	$url = add_query_arg($query_args, 'https://'.BIE_DOMAIN.'/');
 	
 	$body = wp_remote_retrieve_body(wp_remote_get($url, array('timeout' => 20)));
 	

@@ -77,7 +77,7 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 
 == Changelog ==
 
-= 3.2.6 =
+= 3.2.7 =
 * Update API URL.
 
 = 3.2.5 =
