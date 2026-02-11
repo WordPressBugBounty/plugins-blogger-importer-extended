@@ -97,7 +97,7 @@ add_action('template_redirect', function() {
 		}
 		
 	}
-		
+	
 	if (!$redirect) {
 		if (isset($options['redirect_404s']) && $options['redirect_404s']) {
 			$redirect = true;
@@ -194,17 +194,18 @@ add_action('admin_notices', function() {
 	<script>
 	jQuery(document).ready(function($) {
 		
-		var hrefBlogger301Redirect = $('tr[data-slug="blogger-301-redirect"] .deactivate a').attr('href');
+		let hrefBlogger301Redirect = $('tr[data-slug="blogger-301-redirect"] .deactivate a').attr('href');
 		if (hrefBlogger301Redirect) {
 			$('#showDeactivateBlogger301RedirectText').show();
 		}
 		$('#deactivateBlogger301RedirectPlugin').attr('href', hrefBlogger301Redirect);
 		
-		var hrefBloggerToWordPress = $('tr[data-slug="blogger-to-wordpress-redirection"] .deactivate a').attr('href');
+		let hrefBloggerToWordPress = $('tr[data-slug="blogger-to-wordpress-redirection"] .deactivate a').attr('href');
 		if (hrefBloggerToWordPress) {
 			$('#showDeactivateBloggerToWordPressText').show();
 		}
 		$('#deactivateBloggerToWordPress').attr('href', hrefBloggerToWordPress);
+		
 	});
 	</script>
 	<?php

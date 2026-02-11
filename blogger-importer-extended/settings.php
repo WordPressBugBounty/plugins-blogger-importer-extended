@@ -30,7 +30,6 @@ function bie_settings_page_render() {
 	}
 	#bieNoticeOk {
 		display: block !important;
-		/* max-width: 691px; */
 	}
 	.card {
 		max-width: 720px;
@@ -349,4 +348,5 @@ add_action('wp_ajax_bie_reset', function() {
 	echo 1;
 	
 	die;
+	
 });

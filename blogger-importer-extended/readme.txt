@@ -9,7 +9,7 @@ Donate link: https://www.pipdig.co/shop/blogger-importer-plugin/
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-The only plugin you need to move from Blogger to WordPress. Import all your content and setup 301 redirects automatically.
+Easily move your blog from Blogger to WordPress. Import all your content and setup 301 redirects automatically.
 
 == Description ==
 

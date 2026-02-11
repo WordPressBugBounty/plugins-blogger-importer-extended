@@ -2,7 +2,7 @@
 /*
 Plugin Name: Blogger Importer Extended
 Plugin URI: https://wordpress.org/plugins/blogger-importer-extended/
-Description: The only plugin you need to move from Blogger to WordPress. Import all your content and setup 301 redirects automatically.
+Description: The only plugin you need to move from Blogger to WordPress. Import all content and setup 301 redirects automatically.
 Author: pipdig
 Version: 3.2.7
 Author URI: https://www.pipdig.co/
@@ -33,9 +33,14 @@ define('BIE_DOMAIN', 'bie.ppdg.pw');
 define('BIE_DIR', plugin_dir_path(__FILE__));
 define('BIE_PATH', plugin_dir_url(__FILE__));
 
- // Wait time between import batches
+// Wait time between import batches
 if (!defined('BIE_WAIT_TIME')) {
 	define('BIE_WAIT_TIME', 1500);
+}
+
+// Import the first x images to avoid timeout
+if (!defined('BIE_IMAGE_IMPORT_LIMIT')) {
+	define('BIE_IMAGE_IMPORT_LIMIT', 15);
 }
 
 include(BIE_DIR.'settings.php');
@@ -55,8 +60,8 @@ add_action('admin_menu', function() {
 
 // Plugin page links
 add_filter('plugin_action_links_'.plugin_basename(__FILE__), function($links) {
-	$links[] = '<a href="'.admin_url('options-general.php?page=bie-settings').'">'.__('Run Importer').'</a>';
-	$links[] = '<a href="'.admin_url('options-general.php?page=bie-settings#redirectsCard').'">301 Redirects</a>';
+	$links[] = '<a href="'.esc_url(admin_url('options-general.php?page=bie-settings')).'">'.__('Run Importer').'</a>';
+	$links[] = '<a href="'.esc_url(admin_url('options-general.php?page=bie-settings#redirectsCard')).'">301 Redirects</a>';
 	return $links;
 });
 
@@ -66,12 +71,54 @@ register_activation_hook(__FILE__, function() {
 	
 	bie_create_database_tables();
 	
-	if (!get_option('bie_installed_date')) {
-		add_option('bie_installed_date', date('Y-m-d'));
-	}
-	
 	update_option('default_pingback_flag', '');
 	update_option('default_ping_status', 'closed');
+	
+	// Now we create mu-plugin which ensures all other plugins are disabled when importing content from Blogger (only impacts requests to AJAX from the BIE plugin)
+	
+	// Not on multisite
+	if (is_multisite()) {
+		return;
+	}
+	
+	$mu_dir = WP_CONTENT_DIR.'/mu-plugins';
+	$mu_file = $mu_dir.'/blogger-importer-extended-helper.php';
+
+	if (!is_dir($mu_dir)) {
+		wp_mkdir_p($mu_dir);
+	}
+
+	if (!is_dir($mu_dir) || !is_writable($mu_dir) || file_exists($mu_file)) {
+		return;
+	}
+	
+	$code = <<<'PHP'
+<?php
+/**
+ * Plugin Name: Blogger Importer Extended - Helper
+ * Description: Create as stable environment for importing content from Blogger. This mu-plugin is only used by the Blogger Importer Extended plugin and is removed when deactivated. If you are not longer using that plugin, you can delete this file.
+ */
+
+if (!defined('DOING_AJAX') || !DOING_AJAX) {
+	return;
+}
+
+if (empty($_REQUEST['action']) || $_REQUEST['action'] !== 'bie_progress_ajax') {
+	return;
+}
+
+add_filter('option_active_plugins', function($plugins) {
+	
+	$allowed = array(
+		'blogger-importer-extended/bootstrap.php',
+	);
+
+	return array_values(array_intersect($plugins, $allowed));
+	
+});
+PHP;
+
+	@file_put_contents($mu_file, $code);
 	
 });
 
@@ -86,6 +133,19 @@ register_deactivation_hook(__FILE__, function() {
 	foreach ($results as $result) {
 		delete_option($result->option_name);
 	}
+	
+	if (is_multisite()) {
+		return;
+	}
+
+	$mu_file = WP_CONTENT_DIR.'/mu-plugins/blogger-importer-extended-helper.php';
+
+	if (!file_exists($mu_file) || !is_writable($mu_file)) {
+		return;
+	}
+	
+	// Delete the mu-plugin created on activation
+	@unlink($mu_file);
 	
 });
 
@@ -143,12 +203,12 @@ add_action('admin_notices', function() {
 	?>
 	<div class="notice notice-success">
 		<h2>Blogger Importer</h2>
-		<p>Thank you for installing Blogger Importer Extended! Please go to <a href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>">this page</a> to get started.</p>
+		<p>Thank you for installing Blogger Importer Extended! Please go to <a href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>">this page</a> to get started.</p>
 		<form action="" method="post">
 			<input type="hidden" value="1" name="bie_hide_setup_notice" />
 			<?php wp_nonce_field('sec', 'bie_hide_setup_notice_nonce'); ?>
 			<p class="submit" style="margin-top: 5px; padding-top: 5px;">
-				<a href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>" class="button button-primary" style="margin-right: 5px;">Get Started</a> <input name="submit" class="button" value="Remove this notice" type="submit" />
+				<a href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>" class="button button-primary" style="margin-right: 5px;">Get Started</a> <input name="submit" class="button" value="Remove this notice" type="submit" />
 			</p>
 		</form>
 	</div>
@@ -237,7 +297,7 @@ function bie_page_render() {
 	<script>
 	jQuery(document).ready(function($) {
 		
-		$('#wpwrap').before('<div id="pipdigBloggerImporter"><a id="pipdigBloggerClose" href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>" title="Return to dashboard"><span class="dashicons dashicons-no-alt"></span></a><div id="pipdigBloggerImporterContent"><img src="<?php echo BIE_PATH; ?>img/boxes.svg" alt="" class="fade_out" style="width:150px" /><h2 class="fade_out">Welcome to the Blogger Importer!</h2><div id="bieLicenseChoices"><p>The free version of this plugin can import up to 20 blog posts and pages.</p><p>Alternatively you can purchase an <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">unlimited license</a> for unlimited posts, pages, comments and images.</p><p>Read more about the differences <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">here</a>.</p><div style="margin-top:20px"><div class="button" id="bieFreeBtn">20 posts for free</div> <div class="button button-primary" id="bieProBtn">Unlimited license</div></div></div><div id="blogLicenseStep" class="fade_out" style="display:none"><p class="fade_out" style="margin-bottom: 20px;">What is your license key? License keys an be purchased <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">here</a>.</p><input type="text" value="" class="wide-fat fade_out" style="width:320px;max-width:100%;" id="bieLicenseField"> <input type="button" value="<?php echo esc_attr(__('Submit')); ?>" class="button button-primary fade_out" id="bieLicenseSubmit"><div id="bieCheckingLicense" style="display: none; margin-top: 10px;"><span class="dashicons dashicons-update spin"></span> Checking License...</div><div id="bieCheckingLicenseResult" style="margin-top: 10px;"></div></div><div id="blogIdStep" class="fade_out" style="display:none"><p><span id="bieLicenseSuccessMsg"></span>Please enter your Blog\'s ID in the option below. You can find your Blog ID like <a href="<?php echo BIE_PATH; ?>img/find_blog_id.png" target="_blank" rel="noopener">this example</a>.</p><p style="margin-bottom: 20px;"><span class="dashicons dashicons-warning"></span> Please note that Blogger settings must be <a href="<?php echo BIE_PATH; ?>img/blogger_public.png" target="_blank" rel="noopener">Public</a> during the import.</p><input type="text" value="" class="wide-fat fade_out" style="width:320px;max-width:100%;" id="BlogggerBlogIdField" placeholder="Blog ID should be a number"> <input type="button" value="<?php echo esc_attr(__('Submit')); ?>" class="button button-primary fade_out" id="submitBlogId"></div><div id="pipdigBloggerImpoterMsg1"></div><p id="postImportProgress"></p></div></div><div id="totalPostCount" style="display:none"></div><div id="lastUpdateCountdown" style="display:none"></div>');
+		$('#wpwrap').before('<div id="pipdigBloggerImporter"><a id="pipdigBloggerClose" href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>" title="Return to dashboard"><span class="dashicons dashicons-no-alt"></span></a><div id="pipdigBloggerImporterContent"><img src="<?php echo BIE_PATH; ?>img/boxes.svg" alt="" class="fade_out" style="width:150px" /><h2 class="fade_out">Welcome to the Blogger Importer!</h2><div id="bieLicenseChoices"><p>The free version of this plugin can import up to 20 blog posts and pages.</p><p>Alternatively you can purchase an <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">unlimited license</a> for unlimited posts, pages, comments and images.</p><p>Read more about the differences <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">here</a>.</p><div style="margin-top:20px"><div class="button" id="bieFreeBtn">20 posts for free</div> <div class="button button-primary" id="bieProBtn">Unlimited license</div></div></div><div id="blogLicenseStep" class="fade_out" style="display:none"><p class="fade_out" style="margin-bottom: 20px;">What is your license key? License keys an be purchased <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">here</a>.</p><input type="text" value="" class="wide-fat fade_out" style="width:320px;max-width:100%;" id="bieLicenseField"> <input type="button" value="<?php echo esc_attr(__('Submit')); ?>" class="button button-primary fade_out" id="bieLicenseSubmit"><div id="bieCheckingLicense" style="display: none; margin-top: 10px;"><span class="dashicons dashicons-update spin"></span> Checking License...</div><div id="bieCheckingLicenseResult" style="margin-top: 10px;"></div></div><div id="blogIdStep" class="fade_out" style="display:none"><p><span id="bieLicenseSuccessMsg"></span>Please enter your Blog\'s ID in the option below. You can find your Blog ID like <a href="<?php echo BIE_PATH; ?>img/find_blog_id.png" target="_blank" rel="noopener">this example</a>.</p><p style="margin-bottom: 20px;"><span class="dashicons dashicons-warning"></span> Please note that Blogger settings must be <a href="<?php echo BIE_PATH; ?>img/blogger_public.png" target="_blank" rel="noopener">Public</a> during the import.</p><input type="text" value="" class="wide-fat fade_out" style="width:320px;max-width:100%;" id="BlogggerBlogIdField" placeholder="Blog ID should be a number"> <input type="button" value="<?php echo esc_attr(__('Submit')); ?>" class="button button-primary fade_out" id="submitBlogId"></div><div id="pipdigBloggerImpoterMsg1"></div><p id="postImportProgress"></p></div></div><div id="totalPostCount" style="display:none"></div><div id="lastUpdateCountdown" style="display:none"></div>');
 		
 		var bieLicenseField = $('#bieLicenseField');
 		
@@ -311,7 +371,7 @@ function bie_page_render() {
 				} else if (response == 2) {
 					$('#bieCheckingLicenseResult').html('This license has expired. Would you like to <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">purchase a new one</a>?');
 				} else if (response == 3) {
-					$('#bieCheckingLicenseResult').html('This license does not exist. Please check your email receipt for the license key or <a href="<?php echo admin_url('tools.php?page=bie-importer'); ?>">click here</a> to restart the import process.');
+					$('#bieCheckingLicenseResult').html('This license does not exist. Please check your email receipt for the license key or <a href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>">click here</a> to restart the import process.');
 				} else {
 					
 				}
@@ -447,7 +507,7 @@ function bie_page_render() {
 				button.prop('disabled', true);
 				$('.fade_out').addClass('pipdig_hide');
 				importPostsBtn.addClass('pipdig_hide');
-				message.html('<img src="<?php echo BIE_PATH; ?>img/moving.svg" alt="" style="width: 150px;" /><h2><span class="dashicons dashicons-update spin"></span> Importing, Please wait...</h2><p>Please <strong>keep this window open</strong>.</p><p>'+importingTimeNotice+'</p><div style="margin-top: 25px"><a href="<?php echo admin_url('tools.php?page=bie-importer'); ?>&bid='+BlogggerBlogIdField.val()+'" class="button fade_out" id="stopImport"><span class="dashicons dashicons-no" style="margin-top: 4px;"></span> Stop the import!</a></div>');
+				message.html('<img src="<?php echo BIE_PATH; ?>img/moving.svg" alt="" style="width: 150px;" /><h2><span class="dashicons dashicons-update spin"></span> Importing, Please wait...</h2><p>Please <strong>keep this window open</strong>.</p><p>'+importingTimeNotice+'</p><div style="margin-top: 25px"><a href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>&bid='+BlogggerBlogIdField.val()+'" class="button fade_out" id="stopImport"><span class="dashicons dashicons-no" style="margin-top: 4px;"></span> Stop the import!</a></div>');
 				
 				importPosts('', 0, skipComments, skipImages, skipPages, skipAuthors, convertFormatting);
 				
@@ -498,14 +558,14 @@ function bie_page_render() {
 			
 			$.post(ajaxurl, data, function(response) {
 				
-				//console.log(response);
+				console.log(response);
 				
 				if (!checkIsJsonString(response)) {
 					console.log(response);
 					if (response.includes("https://go.pipdig.co/open.php?id=2")) {
-						message.html('<img src="<?php echo BIE_PATH; ?>img/battery_low.svg" alt="" style="width: 150px;" />'+response+'<p style="margin-top: 20px"><a class="button" href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>">Return to dashboard</a></p>');
+						message.html('<img src="<?php echo BIE_PATH; ?>img/battery_low.svg" alt="" style="width: 150px;" />'+response+'<p style="margin-top: 20px"><a class="button" href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>">Return to dashboard</a></p>');
 					} else {
-						message.html('<img src="<?php echo BIE_PATH; ?>img/broken.svg" alt="" style="width: 150px;" /><h2>Connection lost</h2><p>It looks like the importer has stopped working. Don\'t worry though, any progress was not lost! Click the button below to continue.</p><p>Are you seeing this message a lot? <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener">Click here</a> for some tips for easier migrations.</p><p style="margin-top: 20px"><a class="button-primary" href="<?php echo admin_url('tools.php?page=bie-importer'); ?>&bid='+BlogggerBlogIdField.val()+'">Continue Importer</a></p>');
+						message.html('<img src="<?php echo BIE_PATH; ?>img/broken.svg" alt="" style="width: 150px;" /><h2>Connection lost</h2><p>It looks like the importer has stopped working. Don\'t worry though, any progress was not lost! Click the button below to continue.</p><p>Are you seeing this message a lot? <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener">Click here</a> for some tips for easier migrations.</p><p style="margin-top: 20px"><a class="button-primary" href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>&bid='+BlogggerBlogIdField.val()+'">Continue Importer</a></p>');
 					}
 					window.onbeforeunload = null; // Remove navigation prompt
 					$('#postImportProgress').text('');
@@ -524,16 +584,10 @@ function bie_page_render() {
 					
 					$('#lastUpdateCountdown').text('180');
 					
-					/*
-					if (resp.latest_imported_id != '' && resp.latest_imported_title != '' && resp.total_posts != 0) {
-						$('#postImportProgress').html('<h2>Status Update:</h2>There are now <strong>'+resp.total_posts+'</strong> <a href="<?php echo admin_url('edit.php'); ?>" target="_blank" rel="noopener">blog posts</a> in WordPress.<br /><br />Last item imported:<br /><br /><a href="<?php echo trailingslashit(admin_url()); ?>post.php?post=' + resp.latest_imported_id + '&action=edit" target="_blank" rel="noopener" style="text-decoration:none">' + resp.latest_imported_title + '</a>');
-					}
-					*/
-					
 					if (typeof resp.total_posts !== 'undefined' && resp.total_posts != 0) {
 						var time = new Date();
 						var currentTime = time.toLocaleString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true});
-						$('#postImportProgress').html('<h2>Status Update:</h2><span style="font-style:italic">'+currentTime+': There are <strong>'+resp.total_posts+'</strong> <a href="<?php echo admin_url('edit.php'); ?>" target="_blank" rel="noopener">blog posts</a> in WordPress.</span>');
+						$('#postImportProgress').html('<h2>Status Update:</h2><span style="font-style:italic">'+currentTime+': There are <strong>'+resp.total_posts+'</strong> <a href="<?php echo esc_url(admin_url('edit.php')); ?>" target="_blank" rel="noopener">blog posts</a> in WordPress.</span>');
 					}
 					
 					setTimeout(function() {
@@ -547,7 +601,7 @@ function bie_page_render() {
 					window.onbeforeunload = null; // Remove navigation prompt
 					$('#lastUpdateCountdown').text('');
 					$('#postImportProgress').text('');
-					message.html('<img src="<?php echo BIE_PATH; ?>img/success.svg" alt="" style="width: 150px;" /><h2>Success!</h2><p>All content was imported successfully.</p><p>What now? Don\'t forget to setup the <a href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>">remaining steps</a>.</p><p style="margin-top: 20px"><a class="button" href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>">Return to dashboard</a></p>');
+					message.html('<img src="<?php echo BIE_PATH; ?>img/success.svg" alt="" style="width: 150px;" /><h2>Success!</h2><p>All content was imported successfully.</p><p>What now? Don\'t forget to setup the <a href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>">remaining steps</a>.</p><p style="margin-top: 20px"><a class="button" href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>">Return to dashboard</a></p>');
 					$('.fade_out').slideUp(550);
 					
 					$.post(ajaxurl, {'action': 'bie_complete_ajax', 'sec': '<?php echo wp_create_nonce('bie_ajax_nonce'); ?>'}, function(response) {
@@ -573,7 +627,7 @@ function bie_page_render() {
 				
 				if (counter === 0) {
 					window.onbeforeunload = null; // Remove navigation prompt
-					message.html('<img src="<?php echo BIE_PATH; ?>img/broken.svg" alt="" style="width: 150px;" /><h2>Connection lost</h2><p>It looks like the importer has stopped unexpectedly. Don\'t worry though, any progress was not lost! Click the button below to continue the current import.</p><p>Are you seeing this message a lot? <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener">Click here</a> for some tips for easier migrations.</p><p style="margin-top: 20px"><a class="button-primary" href="<?php echo admin_url('tools.php?page=bie-importer'); ?>&bid='+BlogggerBlogIdField.val()+'">Continue Importer</a></p>');
+					message.html('<img src="<?php echo BIE_PATH; ?>img/broken.svg" alt="" style="width: 150px;" /><h2>Connection lost</h2><p>It looks like the importer has stopped unexpectedly. Don\'t worry though, any progress was not lost! Click the button below to continue the current import.</p><p>Are you seeing this message a lot? <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener">Click here</a> for some tips for easier migrations.</p><p style="margin-top: 20px"><a class="button-primary" href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>&bid='+BlogggerBlogIdField.val()+'">Continue Importer</a></p>');
 					$('#lastUpdateCountdown').text('');
 					return;
 				}
@@ -721,7 +775,7 @@ add_action('wp_ajax_bie_get_blog_ajax', function() {
 			echo '<p style="font-style:italic">(Already imported posts will be skipped with both options)</p>';
 		} else {
 			// no previous import found
-			echo '<div class="button button-primary fade_out" id="startImport" style="margin-top: 10px" data-total-posts="'.absint($response->posts).'"><span class="dashicons dashicons-controls-play" style="margin-top: 4px;"></span> Start import!</div> &nbsp;<a href="'.admin_url('tools.php?page=bie-importer').'" class="button fade_out" style="margin-top: 10px">Cancel</a>';
+			echo '<div class="button button-primary fade_out" id="startImport" style="margin-top: 10px" data-total-posts="'.absint($response->posts).'"><span class="dashicons dashicons-controls-play" style="margin-top: 4px;"></span> Start import!</div> &nbsp;<a href="'.esc_url(admin_url('tools.php?page=bie-importer')).'" class="button fade_out" style="margin-top: 10px">Cancel</a>';
 		}
 		
 	}
@@ -788,8 +842,8 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 	wp_suspend_cache_invalidation(true);
 	wp_defer_term_counting(true);
 	wp_defer_comment_counting(true);
-	remove_action('post_updated', 'wp_save_post_revision');
-	add_filter('intermediate_image_sizes_advanced', 'pipdig_blogger_skip_image_sizes'); // disable image sizes from generating, temporarily whilst uploading
+	add_filter('intermediate_image_sizes_advanced', '__return_empty_array');
+	add_filter('big_image_size_threshold', '__return_false');
 	
 	if (!defined('WP_IMPORTING')) define('WP_IMPORTING', true);
 	
@@ -797,7 +851,7 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 		
 		foreach ($response->items as $item) {
 			
-			$exists = (int) $wpdb->get_var( $wpdb->prepare('SELECT post_id FROM '.$wpdb->prefix.'bie_redirects WHERE blogger_post_id = %s', $item->id) );
+			$exists = (int) $wpdb->get_var( $wpdb->prepare("SELECT post_id FROM {$wpdb->prefix}bie_redirects WHERE blogger_post_id = %s LIMIT 1", $item->id) );
 			
 			if ($exists !== 0) {
 				$x++;
@@ -864,12 +918,6 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 					);
 					$wpdb->insert($wpdb->prefix.'bie_redirects', $row, $formats);
 					
-					/*
-					$title = get_the_title($post_id);
-					$latest_imported_title = html_entity_decode($title, ENT_QUOTES, 'UTF-8'); // convert chars like & https://stackoverflow.com/a/6684000
-					$latest_imported_id = $post_id;
-					*/
-					
 				} else {
 					wp_delete_post($post_id, true);
 				}
@@ -899,7 +947,7 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 				
 				foreach ($response->items as $item) {
 					
-					$exists = (int) $wpdb->get_var( $wpdb->prepare("SELECT post_id FROM $wpdb->postmeta WHERE meta_value = %s AND meta_key = 'blogger_post_id'", $item->id) );
+					$exists = (int) $wpdb->get_var( $wpdb->prepare("SELECT post_id FROM {$wpdb->postmeta} WHERE meta_value = %s AND meta_key = 'blogger_post_id' LIMIT 1", $item->id) );
 					
 					if ($exists !== 0) {
 						$x++;
@@ -957,18 +1005,12 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 	}
 	
 	wp_suspend_cache_invalidation(false);
-	wp_defer_term_counting(false);
-	wp_defer_comment_counting(false);
-	add_action('post_updated', 'wp_save_post_revision');
-	remove_filter('intermediate_image_sizes_advanced', 'pipdig_blogger_skip_image_sizes'); // return image sizes to normal after
 	
 	$total_posts = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'post'");
 	
 	$output = array(
 		'next_page' => $next_page_token,
 		'posts_imported' => $x,
-		//'latest_imported_title' => !empty($latest_imported_title) ? strip_tags($latest_imported_title) : '',
-		//'latest_imported_id' => !empty($latest_imported_id) ? strip_tags($latest_imported_id) : '',
 		'total_posts' => $total_posts,
 	);
 	
@@ -1042,7 +1084,7 @@ function pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $blogger_p
 	if (!empty($response->nextPageToken)) {
 		
 		$query_args['page_query'] = $response->nextPageToken; // request next page, keep other args
-				
+		
 		$response = pipdig_blogger_get_response($query_args);
 		
 		if (isset($response->items) && is_array($response->items)) {
@@ -1104,10 +1146,6 @@ function pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $blogger_p
 	
 }
 
-function pipdig_blogger_skip_image_sizes($sizes) {
-	return array();
-}
-
 function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_images, $author_id = '') {
 	
 	if (!$author_id) {
@@ -1144,73 +1182,45 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 			}
 		}
 		
+		$images = array_unique($images); // remove dupes
+		
 		if (!empty($images)) {
 			
-			$x = 0;
-			
-			foreach ($images as $found_image) {
+			foreach ($images as $i => $found_image) {
 				
-				// skip if returns 404
-				$headers = get_headers($found_image, 1);
-				if (isset($headers[0]) && strpos($headers[0], '404') !== false) {
-					continue;
+				if ($i >= BIE_IMAGE_IMPORT_LIMIT) {
+					break;
 				}
 				
 				$found_image_original = $found_image; // keep original for later, we need it for str_replace in content
 				
-				/*
-				preg_match('/[^\?]+\.(jpe?g|jpe|gif|png)\b/i', $found_image, $matches);
-				
-				if (empty($matches[0])) {
-					continue;
-				}
-				*/
-				
-				// check mime
-				$file_size = getimagesize($found_image);
-				
-				$lets_go = false;
-				
-				if (!empty($file_size['mime'])) {
-					
-					$mime = strtolower($file_size['mime']);
-					
-					$allowed_types = ['jpg', 'jpeg', 'jpe', 'png', 'gif', 'webp'];
-					
-					foreach ($allowed_types as $allowed_type) {
-						
-						if (strpos($mime, $allowed_type) !== false) {
-							$file_ext = '.'.$allowed_type;
-							$lets_go = true;
-							break;
-						}
-						
-					}
-					
-				}
-				
-				if (!$lets_go) {
-					continue;
-				}
-				
 				// urldecode twice to better rename imported Chinese characters. See support ticket #47809 for more info
-				$name = urldecode(urldecode(wp_basename($found_image)));
-				
-				// Are Chinese characters in $name?
-				if (preg_match("/\p{Han}+/u", $name)) {
-					
-					// Chinese chars found, so urldecode twice for better filename
-					$found_image = urldecode(urldecode($found_image)); // needed to overcome long filenames.
-					
-				} else {
-					// No Chinese characters found, so revert back to standard filename.
-					// TODO - This might not be necessary if it is safe to double urldecode any filenames. Needs more testing to confirm.
-					$name = wp_basename($found_image);
-				}
+				$name = wp_basename(urldecode(urldecode($found_image)));
+				$found_image = urldecode(urldecode($found_image));
 				
 				if (empty($name)) {
 					continue;
 				}
+				
+				$tmp = download_url($found_image);
+				if (is_wp_error($tmp)) {
+					continue;
+				}
+
+				$info = getimagesize($tmp);
+				if (!$info || empty($info['mime'])) {
+					@unlink($tmp);
+					continue;
+				}
+				
+				$ext_map = [
+					'image/jpeg' => '.jpg',
+					'image/png'  => '.png',
+					'image/gif'  => '.gif',
+					'image/webp' => '.webp',
+				];
+
+				$file_ext = isset($ext_map[$info['mime']]) ? $ext_map[$info['mime']] : '.jpg';
 				
 				// Some filesystems can't handle long filenames. So fallback to post slug.
 				if (strlen($name) > 150) {
@@ -1229,16 +1239,11 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 				
 				$file = array(
 					'name' => $name,
-					'tmp_name' => download_url($found_image),
+					'tmp_name' => $tmp,
 				);
 				
-				if (is_wp_error($file['tmp_name'])) {
-					@unlink($file['tmp_name']);
-					continue;
-				}
-				
-				// remove extension if it's ther. E.g. rtim .jpeg first, then re-add it after. Needed in case there isn't an extension already set
-				$filename = rtrim($file['name'], $file_ext).$file_ext;
+				// remove extension if it's there. E.g. rtim .jpeg first, then re-add it after. Needed in case there isn't an extension already set
+				$filename = pathinfo($file['name'], PATHINFO_FILENAME).$file_ext;
 				
 				$image_id = media_handle_sideload($file, $post_id, $filename, array('post_date' => $post_date, 'post_author' => $author_id));
 				
@@ -1259,7 +1264,7 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 					$content = str_replace($found_image_original, $attachment[0], $content);
 					
 					// if this is the first image, include it in the return as the featured_image_id
-					if ($x === 0) {
+					if ($i === 0) {
 						
 						$featured_image_id = $image_id;
 						
@@ -1270,8 +1275,6 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 						
 					}
 					
-					$x++;
-					
 				}
 				
 				@unlink($file['tmp_name']);
@@ -1279,13 +1282,6 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 			}
 		}
 	}
-	
-	// Add lazy load and srcset if supported
-	/*
-	if (function_exists('wp_filter_content_tags')) {
-		$content = wp_filter_content_tags($content);
-	}
-	*/
 	
 	return array(
 		'content' => $content,

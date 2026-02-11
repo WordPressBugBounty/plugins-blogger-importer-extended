@@ -7,17 +7,10 @@ if (!defined('WP_UNINSTALL_PLUGIN') || !WP_UNINSTALL_PLUGIN || dirname(WP_UNINST
 
 delete_option('bie_license');
 delete_option('bie_hide_setup_notice');
+delete_option('bie_installed_date');
 
 global $wpdb;
-$results = $wpdb->get_results("SELECT option_name FROM $wpdb->options WHERE option_name LIKE 'bie_page_token_%'");
+$results = $wpdb->get_results("SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'bie_page_token_%'");
 foreach ($results as $result) {
 	delete_option($result->option_name);
 }
-
-/*
-// Do we want to delete the redirects on uninstall?
-// Todo - add option to settings page
-global $wpdb;
-$table_name = $wpdb->prefix.'bie_redirects';
-$wpdb->query("DROP TABLE IF EXISTS $table_name");
-*/
