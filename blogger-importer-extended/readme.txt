@@ -2,7 +2,7 @@
 Contributors: pipdig
 Tags: blogger, blogspot, importer
 Requires at least: 5.8
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.0
 Stable tag: trunk
 Donate link: https://www.pipdig.co/shop/blogger-importer-plugin/
@@ -76,6 +76,10 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 3. Success!
 
 == Changelog ==
+
+= 3.2.8 =
+* Update API URL.
+* WP 7.
 
 = 3.2.7 =
 * Update API URL.
