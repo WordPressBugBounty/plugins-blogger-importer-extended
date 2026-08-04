@@ -77,6 +77,9 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 
 == Changelog ==
 
+= 3.3.0 =
+* Don't mark a post as imported when its content failed to import, so it can be retried.
+
 = 3.2.8 =
 * Update API URL.
 * WP 7.

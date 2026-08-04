@@ -4,7 +4,7 @@ Plugin Name: Blogger Importer Extended
 Plugin URI: https://wordpress.org/plugins/blogger-importer-extended/
 Description: The only plugin you need to move from Blogger to WordPress. Import all content and setup 301 redirects automatically.
 Author: pipdig
-Version: 3.2.8
+Version: 3.3.0
 Author URI: https://www.pipdig.co/
 License: GPLv2 or later
 Text Domain: blogger-importer-extended
@@ -28,7 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 if (!defined('ABSPATH')) die;
 
-define('BIE_VER', '3.2.8');
+define('BIE_VER', '3.3.0');
 define('BIE_DOMAIN', 'bie.ppdg.eco');
 define('BIE_DIR', plugin_dir_path(__FILE__));
 define('BIE_PATH', plugin_dir_url(__FILE__));
@@ -41,6 +41,11 @@ if (!defined('BIE_WAIT_TIME')) {
 // Import the first x images to avoid timeout
 if (!defined('BIE_IMAGE_IMPORT_LIMIT')) {
 	define('BIE_IMAGE_IMPORT_LIMIT', 15);
+}
+
+// Per-image download timeout. WordPress defaults to 300s, which lets a single unresponsive image consume the entire request.
+if (!defined('BIE_IMAGE_DOWNLOAD_TIMEOUT')) {
+	define('BIE_IMAGE_DOWNLOAD_TIMEOUT', 20);
 }
 
 include(BIE_DIR.'settings.php');
@@ -858,72 +863,80 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 				continue;
 			}
 			
+			$raw_content = isset($item->content) ? $item->content : '';
+			$post_content = pipdig_blogger_decode_content($raw_content);
+
+			// The body failed to decode. Skip the post entirely rather than
+			// create an empty one: nothing is written to bie_redirects, so the
+			// next run picks it up again instead of skipping it forever.
+			if ($post_content === '' && trim($raw_content) !== '') {
+				continue;
+			}
+
 			$insert_post = array(
 				'post_type' => 'post',
 				'post_date_gmt' => $item->published,
-				'post_content' => '',
+				'post_content' => $post_content,
 				'post_title' => $item->title,
 				'post_status' => 'publish',
 				'ping_status' => 'closed',
 				'post_name' => $item->slug,
 				'tags_input' => property_exists($item, 'labels') ? $item->labels : '',
 			);
-			
+
 			$author_id = '';
-			
+
 			if (!$skip_authors) {
 				if ($item->author != 'Unknown') {
 					$author_id = pipdig_blogger_process_author(sanitize_user($item->author_id), $item->author);
 					$insert_post['post_author'] = $author_id;
 				}
 			}
-			
+
 			$post_id = wp_insert_post($insert_post);
-			
-			if (!is_wp_error($post_id) && $post_id) {
-				
-				// returns post content and also featured image ID
-				$content = pipdig_blogger_process_content($post_id, $item->content, $item->published, $skip_images, $author_id);
-				
-				$update = array(
+
+			if (is_wp_error($post_id) || !$post_id) {
+				continue;
+			}
+
+			$x++;
+
+			// Store the redirect as soon as the post exists. Everything below
+			// this point is enrichment, so if the request dies part way through
+			// we are left with a complete post rather than a duplicate on the
+			// next run.
+			$row = array(
+				'post_id' => $post_id,
+				'blogger_permalink' => $item->permalink,
+				'blogger_post_id' => sanitize_text_field($item->id),
+			);
+			$formats = array(
+				'%d',
+				'%s',
+				'%s',
+			);
+			$wpdb->insert($wpdb->prefix.'bie_redirects', $row, $formats);
+
+			if (!$skip_comments && isset($item->comments)) {
+				pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $item->id, $item->comments);
+			}
+
+			// Pull images into the media library and repoint the content at
+			// them. Also returns the first image to use as the featured image.
+			$content = pipdig_blogger_process_content($post_id, $post_content, $item->published, $skip_images, $author_id);
+
+			if ($content['content'] !== $post_content) {
+				wp_update_post(array(
 					'ID' => $post_id,
 					'post_content' => $content['content'],
-				);
-				
-				$post_id = wp_update_post($update);
-				
-				if (!is_wp_error($post_id) && $post_id) {
-					
-					$x++;
-					
-					if (!$skip_comments && isset($item->comments)) {
-						pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $item->id, $item->comments);
-					}
-					
-					// set the featured image
-					if (!empty($content['featured_image_id'])) {
-						update_post_meta($post_id, '_thumbnail_id', $content['featured_image_id']);
-					}
-					
-					// store redirect
-					$row = array(
-						'post_id' => $post_id,
-						'blogger_permalink' => $item->permalink,
-						'blogger_post_id' => sanitize_text_field($item->id),
-					);
-					$formats = array(
-						'%d',
-						'%s',
-						'%s',
-					);
-					$wpdb->insert($wpdb->prefix.'bie_redirects', $row, $formats);
-					
-				} else {
-					wp_delete_post($post_id, true);
-				}
-				
+				));
 			}
-			
+
+			// set the featured image
+			if (!empty($content['featured_image_id'])) {
+				update_post_meta($post_id, '_thumbnail_id', $content['featured_image_id']);
+			}
+
 		}
 		
 	}
@@ -937,7 +950,7 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 		
 		delete_option('bie_page_token_'.$blogger_blog_id);
 		
-		if (absint($_POST['skip_pages']) !== 1) {
+		if (!isset($_POST['skip_pages']) || absint($_POST['skip_pages']) !== 1) {
 			
 			$query_args['query'] = 'pages'; // change our request from posts to pages, keep other args
 			
@@ -954,10 +967,20 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 						continue;
 					}
 					
+					$raw_content = isset($item->content) ? $item->content : '';
+					$page_content = pipdig_blogger_decode_content($raw_content);
+
+					// Body failed to decode. Skip rather than create an empty
+					// page; without the blogger_post_id meta the next run
+					// retries it instead of skipping it.
+					if ($page_content === '' && trim($raw_content) !== '') {
+						continue;
+					}
+
 					$insert_post = array(
 						'post_type' => 'page',
 						'post_date_gmt' => $item->published,
-						'post_content' => '',
+						'post_content' => $page_content,
 						'post_title' => $item->title,
 						'post_status' => 'publish',
 						'ping_status' => 'closed',
@@ -966,36 +989,35 @@ add_action('wp_ajax_bie_progress_ajax', function() {
 							'blogger_post_id' => $item->id,
 						),
 					);
-					
+
 					$author_id = '';
-			
+
 					if (!$skip_authors) {
 						if ($item->author != 'Unknown') {
 							$author_id = pipdig_blogger_process_author(sanitize_user($item->author_id), $item->author);
 							$insert_post['post_author'] = $author_id;
 						}
 					}
-					
+
 					$page_id = wp_insert_post($insert_post);
-					
-					if ($page_id) {
-						
-						// returns post content and also featured image ID
-						$content = pipdig_blogger_process_content($page_id, $item->content, $item->published, $skip_images, $author_id);
-						
-						$update = array(
+
+					if (is_wp_error($page_id) || !$page_id) {
+						continue;
+					}
+
+					$content = pipdig_blogger_process_content($page_id, $page_content, $item->published, $skip_images, $author_id);
+
+					if ($content['content'] !== $page_content) {
+						wp_update_post(array(
 							'ID' => $page_id,
 							'post_content' => $content['content'],
-						);
-		 
-						$post_id = wp_update_post($update);
-						
-						if (is_wp_error($post_id)) {
-							wp_delete_post($post_id, true);
-						}
-						
+						));
 					}
-					
+
+					if (!empty($content['featured_image_id'])) {
+						update_post_meta($page_id, '_thumbnail_id', $content['featured_image_id']);
+					}
+
 				}
 				
 			}
@@ -1083,7 +1105,9 @@ function pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $blogger_p
 	// next page if supplied. Two sweeps of 500 comments should be enough?
 	if (!empty($response->nextPageToken)) {
 		
-		$query_args['page_query'] = $response->nextPageToken; // request next page, keep other args
+		// Must be page_token: the API reads page_token/pageToken, so sending
+		// page_query silently refetched page one and duplicated every comment.
+		$query_args['page_token'] = $response->nextPageToken; // request next page, keep other args
 		
 		$response = pipdig_blogger_get_response($query_args);
 		
@@ -1146,26 +1170,64 @@ function pipdig_bloggger_process_comments($post_id, $blogger_blog_id, $blogger_p
 	
 }
 
+/**
+ * Point in this request after which we stop downloading images.
+ *
+ * Images are the only unbounded work in a batch, and a request that dies part
+ * way through leaves posts half-processed. Stopping early just means the
+ * remaining images stay on Blogger, which is what the "Don't import images"
+ * option does anyway.
+ *
+ * Returns 0 when PHP has no execution limit.
+ */
+function pipdig_blogger_deadline() {
+
+	static $deadline = null;
+
+	if ($deadline === null) {
+
+		$max_execution_time = (int) ini_get('max_execution_time');
+
+		// Leave headroom for the rest of the batch: comments, the remaining
+		// posts, and sending the response.
+		$deadline = ($max_execution_time > 0) ? microtime(true) + max(5, $max_execution_time * 0.7) : 0;
+
+	}
+
+	return $deadline;
+
+}
+
+
+/**
+ * Decode post/page content as sent by the API.
+ *
+ * The API always sends content htmlspecialchars encoded. This used to guess
+ * between that and base64 by checking whether the string contained a space,
+ * which silently turned any space-free post into binary and left the post body
+ * empty while every other field imported fine. Blogger's editor writes &nbsp;
+ * rather than literal spaces, so a lot of real posts hit it.
+ */
+function pipdig_blogger_decode_content($content) {
+
+	$content = trim($content);
+
+	return htmlspecialchars_decode($content);
+
+}
+
+
 function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_images, $author_id = '') {
-	
+
 	if (!$author_id) {
 		$author_id = get_current_user_id();
 	}
-	
-	$content = trim($content);
-	
-	// if string has spaces, it won't be base64
-	if (strpos($content, ' ') !== false) {
-		$content = htmlspecialchars_decode($content);
-	} else {
-		$content = base64_decode($content);
-	}
-	
+
+	$featured_image_id = false;
+
 	// download images to media library
 	if (!$skip_images) {
-		
-		$featured_image_id = false;
-		
+
 		$images = array();
 		
 		preg_match_all('/<img [^>]*src="([^"]+blogspot\.com\/[^"]+)"[^>]*>/', $content, $found_images);
@@ -1186,12 +1248,20 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 		
 		if (!empty($images)) {
 			
+			$deadline = pipdig_blogger_deadline();
+
 			foreach ($images as $i => $found_image) {
-				
+
 				if ($i >= BIE_IMAGE_IMPORT_LIMIT) {
 					break;
 				}
-				
+
+				// Out of time. Leave the rest pointing at Blogger rather than
+				// risk the request dying mid-post.
+				if ($deadline && microtime(true) > $deadline) {
+					break;
+				}
+
 				$found_image_original = $found_image; // keep original for later, we need it for str_replace in content
 				
 				// urldecode twice to better rename imported Chinese characters. See support ticket #47809 for more info
@@ -1202,7 +1272,7 @@ function pipdig_blogger_process_content($post_id, $content, $post_date, $skip_im
 					continue;
 				}
 				
-				$tmp = download_url($found_image);
+				$tmp = download_url($found_image, BIE_IMAGE_DOWNLOAD_TIMEOUT);
 				if (is_wp_error($tmp)) {
 					continue;
 				}
