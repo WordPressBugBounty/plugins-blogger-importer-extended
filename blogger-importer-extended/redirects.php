@@ -8,12 +8,10 @@ add_action('template_redirect', function() {
 	
 	if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], 'sitemap.xml') !== false) return;
 	
-	// No pretty permalinks? No redirects
 	if (!get_option('permalink_structure')) {
 		return;
 	}
 	
-	// Redirects enabled?
 	$options = get_option('bie_settings');
 	if (!isset($options['enabled_redirects']) || !$options['enabled_redirects']) {
 		return;
@@ -28,20 +26,18 @@ add_action('template_redirect', function() {
 	global $wp;
 	$split = explode('/', $wp->request);
 	
-	// m=1 is stripped along with all other queries
 	
 	if (isset($split[0]) && isset($split[1])) {
 		
-		if ($split[0] == 'feeds' && $split[1] == 'posts') { // feeds
+		if ($split[0] == 'feeds' && $split[1] == 'posts') {
 			
 			$new_url .= 'feed';
 			$redirect = true;
 			
-		} elseif ($split[0] == 'search' && $split[1] == 'label' && !empty($split[2])) { // labels
+		} elseif ($split[0] == 'search' && $split[1] == 'label' && !empty($split[2])) {
 			
 			$label = str_replace('%20', '-', $split[2]);
 			
-			// check if it's a category/tag
 			if (term_exists($label, 'category')) {
 				$base = get_option('category_base', 'category');
 				$new_url .= $base.'/'.strtolower($label);
@@ -52,7 +48,7 @@ add_action('template_redirect', function() {
 				$redirect = true;
 			}
 			
-		} elseif ( (count($split) === 2 && $split[0] == 'p' && strpos($split[1], '.html') !== false) || (is_numeric($split[0]) && !empty($split[2]) && strpos($split[2], '.html') !== false) ) { // posts/pages
+		} elseif ( (count($split) === 2 && $split[0] == 'p' && strpos($split[1], '.html') !== false) || (is_numeric($split[0]) && !empty($split[2]) && strpos($split[2], '.html') !== false) ) {
 		
 			$url = $wp->request;
 			$path = parse_url($url, PHP_URL_PATH);
@@ -175,10 +171,10 @@ add_action('admin_notices', function() {
 	?>
 	<div class="notice notice-warning">
 		<h2>Plugin conflict</h2>
-		<p>The <?php echo implode($active_plugins, ' and '); ?> plugin is currently active. Please note this may cause problems with Blogger Importer Extended. We recommend removing those plugins and activating the 301 redirect options on <a href="<?php echo admin_url('options-general.php?page=bie-settings'); ?>">this page</a> instead.</p>
+		<p>The <?php echo esc_html(implode(' and ', $active_plugins)); ?> plugin is currently active. Please note this may cause problems with Blogger Importer Extended. We recommend removing those plugins and activating the 301 redirect options on <a href="<?php echo esc_url(admin_url('options-general.php?page=bie-settings')); ?>">this page</a> instead.</p>
 		<p id="showDeactivateBlogger301RedirectText" style="display:none"> <a href="#" id="deactivateBlogger301RedirectPlugin">Click here</a> to deactivate the "Blogger 301 Redirect" plugin automatically.</p>
 		<p id="showDeactivateBloggerToWordPressText" style="display:none"> <a href="#" id="deactivateBloggerToWordPress">Click here</a> to deactivate the "Blogger To WordPress" plugin automatically.</p>
-		<form action="<?php echo admin_url('plugins.php') ?>" method="post">
+		<form action="<?php echo esc_url(admin_url('plugins.php')) ?>" method="post">
 			<input type="hidden" value="1" name="bie_hide_redirects_plugin_notice" />
 			<?php wp_nonce_field('sec', 'bie_hide_redirects_plugin_nonce'); ?>
 			<p class="submit" style="margin-top: 5px; padding-top: 5px;">

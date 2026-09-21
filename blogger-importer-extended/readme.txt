@@ -2,7 +2,7 @@
 Contributors: pipdig
 Tags: blogger, blogspot, importer
 Requires at least: 5.8
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.0
 Stable tag: trunk
 Donate link: https://www.pipdig.co/shop/blogger-importer-plugin/
@@ -43,9 +43,9 @@ The Google Blogger API has a limited quota per day. Offering 20 free imports sho
 
 == What is the difference between Free and Unlimited? ==
 
-With the free version, you can import up to 20 blog posts/pages, along with all comments, featured images and post labels. If a post has more than one image, the first image will be downloaded to the media library and set as the featured image. Any other images will display in the post content, but will be hosted on Google rather than WordPress.
+With the free version, you can import up to 20 blog posts/pages, along with all comments, images and post labels.
 
-With the unlimited version, all content is imported into WordPress (unless you select the option to exclude them). There are no limits on the number of posts, pages, comments, images or labels. The only thing which is not imported is draft or sheduled posts.
+With the unlimited version, all content is imported into WordPress (unless you select the option to exclude certain parts). There are no limits on the number of posts, pages, comments, images or labels. The only thing which is not imported is draft or scheduled posts.
 
 With both versions, you can setup all the required 301 redirects from Blogger to WordPress.
 
@@ -76,6 +76,11 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 3. Success!
 
 == Changelog ==
+
+= 3.4.0 =
+* Posts and pages are fetched in larger batches, which means fewer requests and a quicker import.
+* Fixed a PHP warning when importing authors.
+* Removed the helper mu-plugin, which is no longer used. It is deleted automatically on update.
 
 = 3.3.0 =
 * Don't mark a post as imported when its content failed to import, so it can be retried.

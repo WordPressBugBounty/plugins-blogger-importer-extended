@@ -1,12 +1,10 @@
 <?php if (!defined('ABSPATH')) die;
 
-// Add menu item under Tools
 add_action('admin_menu', function() {
 	add_submenu_page('options-general.php', 'Blogger Importer', 'Blogger Importer', 'manage_options', 'bie-settings', 'bie_settings_page_render');
 }, 999999);
 
 
-// Highlight the permalink setting to choose
 add_action('admin_footer-options-permalink.php', function() {
 	if (get_option('permalink_structure')) {
 		return;
@@ -112,7 +110,7 @@ function bie_settings_page_render() {
 				echo '<pre>';
 				?>
 			<?php } else { ?>
-				<p><a href="<?php echo admin_url('tools.php?page=bie-importer'); ?>" class="button" target="_blank">Run importer</a></p>
+				<p><a href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>" class="button" target="_blank">Run importer</a></p>
 				<p>After the import is finished, you can return to this page to complete any remaining steps.</p>
 			<?php } ?>
 		</div>
@@ -126,7 +124,7 @@ function bie_settings_page_render() {
 			<?php if (get_option('permalink_structure')) { ?>
 				<p>We recommend enabling both options if you are not using any other redirection plugins/methods. If you're not sure what that means, it should be safe to enable both options anyway.</p>
 			<?php } else { ?>
-				<p><span class="dashicons dashicons-warning"></span> This site is not currently using "pretty permalinks". The redirection options <strong>will not work</strong>.<br />Please go to <a href="<?php echo admin_url('options-permalink.php?bie-highlight-permalink=1'); ?>">this page</a> and select the "Post name" option <a href="<?php echo BIE_PATH; ?>img/pretty_permalinks.png" target="_blank">shown here</a>.</p>
+				<p><span class="dashicons dashicons-warning"></span> This site is not currently using "pretty permalinks". The redirection options <strong>will not work</strong>.<br />Please go to <a href="<?php echo esc_url(admin_url('options-permalink.php?bie-highlight-permalink=1')); ?>">this page</a> and select the "Post name" option <a href="<?php echo esc_url(BIE_PATH.'img/pretty_permalinks.png'); ?>" target="_blank">shown here</a>.</p>
 				<style>
 				#blogger_redirects_settings {
 					pointer-events: none;
@@ -196,7 +194,7 @@ URL: https://www.pipdig.co
 			<p>Not happy with the plugin? Please contact support@pipdig.zendesk.com and we may be able to help.</p>
 		</div>
 		
-		<?php if (!function_exists('is_cart')) { // don't want to risk ecommerce sites losing data from misunderstanding the reset function ?>
+		<?php if (!function_exists('is_cart')) { ?>
 			<p id="resetBieStatus" style="margin-top: 30px;"><span style="font-size: 10px;">Need to reset this site's content and start a fresh import? <a href="#" id="resetBieBtn">Click here</a></span></p>
 		<?php } ?>
 		
@@ -237,12 +235,12 @@ URL: https://www.pipdig.co
 			
 			var data = {
 				'action': 'bie_reset',
-				'sec': '<?php echo wp_create_nonce('bie_reset_nonce'); ?>',
+				'sec': '<?php echo esc_js(wp_create_nonce('bie_reset_nonce')); ?>',
 			};
 			
 			$.post(ajaxurl, data, function(response) {
 				if (response == 1) {
-					$('#resetBieStatus').html('Reset complete! You can now <a href="<?php echo admin_url('tools.php?page=bie-importer'); ?>">start a new import</a>.');
+					$('#resetBieStatus').html('Reset complete! You can now <a href="<?php echo esc_url(admin_url('tools.php?page=bie-importer')); ?>">start a new import</a>.');
 				} else {
 					$('#resetBieStatus').text('Reset failed! Please reload this page to try again.');
 				}
@@ -261,10 +259,8 @@ add_action('admin_init', function() {
 	
 	add_settings_section('bie_redirects_section', '', null, 'bie_settings');
 	
-	// Enable redirects
 	add_settings_field('enabled_redirects', 'Redirect old Blogger links', 'bie_settings_field_enable_redirects', 'bie_settings', 'bie_redirects_section');
 	
-	// 404 to homepage
 	add_settings_field('redirect_404s', 'Redirect 404s to homepage', 'bie_settings_field_redirect_404s', 'bie_settings', 'bie_redirects_section');
 	
 	register_setting('bie_redirects_section', 'bie_settings');
@@ -297,9 +293,9 @@ function bie_settings_field_enable_redirects() {
 		<span class="slider_checkbox"></span>
 	</label>
 	<p class="description">Any old Blogger post, page, label or RSS feed links will be 301 redirected, keeping any SEO value.<?php if ($show_example) { ?> For example:</p>
-	<p class="description"><?php echo home_url().'/'.$year.'/'.$month.'/'.$postname.'.html'; ?><br />
+	<p class="description"><?php echo esc_url(home_url().'/'.$year.'/'.$month.'/'.$postname.'.html'); ?><br />
 	will redirect to<br />
-	<?php echo home_url().$permalink; ?></p><?php } ?>
+	<?php echo esc_url(home_url().$permalink); ?></p><?php } ?>
 	<?php
 }
 
