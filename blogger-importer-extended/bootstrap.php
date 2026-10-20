@@ -4,7 +4,7 @@ Plugin Name: Blogger Importer Extended
 Plugin URI: https://wordpress.org/plugins/blogger-importer-extended/
 Description: The only plugin you need to move from Blogger to WordPress. Import all content and setup 301 redirects automatically.
 Author: pipdig
-Version: 3.4.0
+Version: 3.5.0
 Author URI: https://www.pipdig.co/
 License: GPLv2 or later
 Text Domain: blogger-importer-extended
@@ -12,7 +12,7 @@ Text Domain: blogger-importer-extended
 
 if (!defined('ABSPATH')) die;
 
-define('BIE_VER', '3.4.0');
+define('BIE_VER', '3.5.0');
 define('BIE_DOMAIN', 'bie.ppdg.eco');
 define('BIE_DIR', plugin_dir_path(__FILE__));
 define('BIE_PATH', plugin_dir_url(__FILE__));
@@ -199,6 +199,8 @@ add_action('admin_enqueue_scripts', function($hook) {
 			'license'  => !empty(get_option('bie_license')) ? get_option('bie_license') : 'free',
 		),
 		'pageSize'  => 25,
+
+		'licenseArgs' => bie_license_check_args(),
 	)).';', 'before');
 
 }, 20);
@@ -226,7 +228,7 @@ function bie_page_render() {
 				<p><?php esc_html_e('The free version of this plugin can import up to 20 blog posts and pages.', 'blogger-importer-extended'); ?></p>
 				<p><?php printf(
 					wp_kses(__('Alternatively you can purchase an <a href="%s" target="_blank" rel="noopener">unlimited license</a> for unlimited posts, pages, comments and images.', 'blogger-importer-extended'), array('a' => array('href' => array(), 'target' => array(), 'rel' => array()))),
-					'https://go.pipdig.co/open.php?id=bie-pro'
+					'https://bloggerimporter.com/'
 				); ?></p>
 				<div style="margin-top:20px">
 					<div class="button" id="bieFreeBtn"><?php esc_html_e('20 posts for free', 'blogger-importer-extended'); ?></div>
@@ -237,7 +239,7 @@ function bie_page_render() {
 			<div id="blogLicenseStep" class="fade_out" style="display:none">
 				<p class="fade_out" style="margin-bottom: 20px;"><?php printf(
 					wp_kses(__('What is your license key? License keys can be purchased <a href="%s" target="_blank" rel="noopener">here</a>.', 'blogger-importer-extended'), array('a' => array('href' => array(), 'target' => array(), 'rel' => array()))),
-					'https://go.pipdig.co/open.php?id=bie-pro'
+					'https://bloggerimporter.com/'
 				); ?></p>
 				<input type="text" value="<?php echo esc_attr($prefill); ?>" class="wide-fat fade_out" style="width:320px;max-width:100%;" id="bieLicenseField">
 				<input type="button" value="<?php esc_attr_e('Submit', 'blogger-importer-extended'); ?>" class="button button-primary fade_out" id="bieLicenseSubmit">
@@ -307,49 +309,65 @@ add_action('wp_ajax_bie_complete_ajax', function() {
 });
 
 
+function bie_license_check_args() {
+
+	$email = get_option('admin_email');
+	$url = home_url();
+
+	return array(
+		'email' => !empty($email) ? $email : 0,
+		'bh' => (defined('WP_CONTENT_DIR') && file_exists(WP_CONTENT_DIR.'/mu-plugins/sso.php')) ? 1 : 0,
+		'url' => !empty($url) ? $url : 0,
+	);
+
+}
+
+
+add_action('wp_ajax_bie_save_license_ajax', function() {
+
+	check_ajax_referer('bie_ajax_nonce', 'sec');
+
+	if (empty($_POST['bie_license'])) {
+		wp_die();
+	}
+
+	update_option('bie_license', sanitize_text_field($_POST['bie_license']), false);
+
+	wp_die();
+
+});
+
+
 add_action('wp_ajax_bie_check_license_ajax', function() {
 
 	check_ajax_referer('bie_ajax_nonce', 'sec');
-	
+
 	if (!isset($_POST['bie_license'])) {
 		echo 0;
 		wp_die();
 	}
-	
-	$email = get_option('admin_email');
-	if (empty($email)) {
-		$email = 0;
-	}
-	
-	$bh = 0;
-	if (defined('WP_CONTENT_DIR') && file_exists(WP_CONTENT_DIR.'/mu-plugins/sso.php')) {
-		$bh = 1;
-	}
-	
-	$url = rawurlencode(home_url());
-	if (empty($url)) {
-		$url = 0;
-	}
-	
+
 	$license = sanitize_text_field($_POST['bie_license']);
-	
-	$request = add_query_arg(array(
-		'license' => $license,
-		'email' => $email,
-		'bh' => $bh,
-		'url' => $url
-	), 'https://'.BIE_DOMAIN.'/check_license.php');
-	
-	$body = wp_remote_retrieve_body(wp_remote_get($request, array('timeout' => 15)));
-	
+
+	$request = add_query_arg(rawurlencode_deep(array_merge(
+		array('license' => $license),
+		bie_license_check_args()
+	)), bie_api_base().'check_license.php');
+
+	$body = trim(wp_remote_retrieve_body(wp_remote_get($request, array('timeout' => 15))));
+
+	if (!preg_match('/^\d+$/', $body)) {
+		wp_die();
+	}
+
 	if ($body == 1) {
 		update_option('bie_license', $license, false);
 	}
-	
+
 	echo absint($body);
-	
+
 	wp_die();
-	
+
 });
 
 
@@ -374,13 +392,29 @@ add_action('wp_ajax_bie_get_blog_ajax', function() {
 		$free_license = false;
 	}
 	
-	$query_args = array(
-		'blog_id' => $blogger_blog_id,
-		'query' => 'blog',
-	);
-	
-	$response = pipdig_blogger_get_response($query_args, true);
-	
+	if (!empty($_POST['blog']['name'])) {
+
+		$blog = wp_unslash($_POST['blog']);
+
+		$response = (object) array(
+			'name' => sanitize_text_field($blog['name']),
+			'url' => isset($blog['url']) ? esc_url_raw($blog['url']) : '',
+			'posts' => isset($blog['posts']) ? absint($blog['posts']) : 0,
+			'pages' => isset($blog['pages']) ? absint($blog['pages']) : 0,
+			'api_v' => isset($blog['api_v']) ? absint($blog['api_v']) : 0,
+		);
+
+	} else {
+
+		$query_args = array(
+			'blog_id' => $blogger_blog_id,
+			'query' => 'blog',
+		);
+
+		$response = pipdig_blogger_get_response($query_args, true);
+
+	}
+
 	if (isset($response->name)) {
 		
 		$site_url = rtrim($response->url, '/');
@@ -402,7 +436,7 @@ add_action('wp_ajax_bie_get_blog_ajax', function() {
 			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="convertFormatting" name="convertFormatting" value="1"> Try to clean-up post content</label> <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener" class="bie_info_icon" title="Click here for more information"><span class="dashicons dashicons-editor-help"></span></a></div>';
 		} else {
 			echo '<p class="fade_out">Import up to 20 posts and pages</span> from <a href="'.esc_url($response->url).'" target="_blank" rel="noopener">'.esc_html($site_url).'</a>.</p>';
-			echo '<p style="margin-bottom: 10px;">Want to import more content? Purchase an <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">unlimited license</a> for unlimited inports.</p>';
+			echo '<p style="margin-bottom: 10px;">Want to import more content? Purchase an <a href="https://bloggerimporter.com/" target="_blank" rel="noopener">unlimited license</a> for unlimited inports.</p>';
 			echo '<p style="margin-bottom: 10px;"><em>Please note that Draft & Scheduled posts are not imported.</em></p>';
 		}
 		
@@ -441,8 +475,6 @@ add_action('wp_ajax_bie_delete_progress_ajax', function() {
 
 function bie_import_comment_page($post_id, $blogger_blog_id, $blogger_post_id, $page_token = '') {
 
-	global $wpdb;
-
 	$query_args = array(
 		'blog_id' => $blogger_blog_id,
 		'query'   => 'comments',
@@ -458,6 +490,19 @@ function bie_import_comment_page($post_id, $blogger_blog_id, $blogger_post_id, $
 	if (is_wp_error($response)) {
 		return $response;
 	}
+
+	$result = bie_insert_comment_page($post_id, isset($response->items) && is_array($response->items) ? $response->items : array());
+
+	$result['next_page_token'] = !empty($response->nextPageToken) ? (string) $response->nextPageToken : '';
+
+	return $result;
+
+}
+
+
+function bie_insert_comment_page($post_id, $items) {
+
+	global $wpdb;
 
 	$existing = array();
 
@@ -477,11 +522,13 @@ function bie_import_comment_page($post_id, $blogger_blog_id, $blogger_post_id, $
 	$skipped  = 0;
 	$replies  = array();
 
-	if (isset($response->items) && is_array($response->items)) {
+	$kses_tags = current_user_can('unfiltered_html') ? null : array_merge(wp_kses_allowed_html('data'), array('br' => array(), 'ul' => array()));
 
-		foreach ($response->items as $item) {
+	if (is_array($items)) {
 
-			if (!isset($item->id)) {
+		foreach ($items as $item) {
+
+			if (!is_object($item) || !isset($item->id)) {
 				continue;
 			}
 
@@ -492,13 +539,17 @@ function bie_import_comment_page($post_id, $blogger_blog_id, $blogger_post_id, $
 				continue;
 			}
 
-			$content = htmlspecialchars_decode(isset($item->content) ? $item->content : '');
+			$content = strip_tags(htmlspecialchars_decode(isset($item->content) ? (string) $item->content : ''), '<a><abbr><acronym><b><blockquote><br><cite><code><del><em><q><strike><strong><ul>');
+
+			if ($kses_tags) {
+				$content = wp_kses($content, $kses_tags);
+			}
 
 			$comment_id = wp_insert_comment(array(
 				'comment_post_ID' => $post_id,
 				'comment_author'  => !empty($item->author) ? esc_html($item->author) : 'Anonymous',
-				'comment_date'    => $item->published,
-				'comment_content' => strip_tags($content, '<a><abbr><acronym><b><blockquote><br><cite><code><del><em><q><strike><strong><ul>'),
+				'comment_date'    => isset($item->published) ? $item->published : '',
+				'comment_content' => $content,
 				'comment_meta'    => array(
 					'blogger_id' => $blogger_id,
 				),
@@ -533,9 +584,8 @@ function bie_import_comment_page($post_id, $blogger_blog_id, $blogger_post_id, $
 	}
 
 	return array(
-		'inserted'        => $inserted,
-		'skipped'         => $skipped,
-		'next_page_token' => !empty($response->nextPageToken) ? (string) $response->nextPageToken : '',
+		'inserted' => $inserted,
+		'skipped'  => $skipped,
 	);
 
 }

@@ -1,11 +1,11 @@
 === Blogger Importer Extended ===
-Contributors: pipdig
-Tags: blogger, blogspot, importer
+Contributors: pipdig, lavoieltd
+Tags: blogger, blogspot, importer, import
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.0
 Stable tag: trunk
-Donate link: https://www.pipdig.co/shop/blogger-importer-plugin/
+Donate link: https://bloggerimporter.com/
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,7 @@ Easily move your blog from Blogger to WordPress. Import all your content and set
 
 Blogger Importer Extended is the easiest way to import your posts, pages, tags, comments, images and authors from **Blogger to WordPress**. You can also enable 301 redirects from old Blogger links to preserve SEO ranking.
 
-Import up to 20 blog posts/pages for free, along with all comments, featured images and post labels. If you have more than 20 blog posts, you may wish to purchase an [unlimited license](https://www.pipdig.co/shop/blogger-importer-plugin/). This allows you to import an unlimited amount of posts, pages, comments, images, labels and authors. You can also choose from some extra options to help with SEO and content formatting.
+Import up to 20 blog posts/pages for free, along with all comments, featured images and post labels. If you have more than 20 blog posts, you may wish to purchase an [unlimited license](https://bloggerimporter.com/). This allows you to import an unlimited amount of posts, pages, comments, images, labels and authors. You can also choose from some extra options to help with SEO and content formatting.
 
 Blogger Importer Extended can:
 
@@ -39,7 +39,7 @@ Blogger Importer Extended can:
 
 == Why is the free version limited to 20 posts? ==
 
-The Google Blogger API has a limited quota per day. Offering 20 free imports should be enough for personal blogs without hitting the Google API quota limit. If you have more than 20 posts, or simply want to support the plugin, you may wish to purchase an [unlimited license](https://www.pipdig.co/shop/blogger-importer-plugin/).
+The Google Blogger API has a limited quota per day. Offering 20 free imports should be enough for personal blogs without hitting the Google API quota limit. If you have more than 20 posts, or simply want to support the plugin, you may wish to purchase an [unlimited license](https://bloggerimporter.com/).
 
 == What is the difference between Free and Unlimited? ==
 
@@ -51,9 +51,7 @@ With both versions, you can setup all the required 301 redirects from Blogger to
 
 == What if I have A LOT blog posts? ==
 
-If you want to import more than 20 posts, please consider purchasing an [unlimited license](https://www.pipdig.co/shop/blogger-importer-plugin/). This allows you to import as much as you like. The importer can handle any number of posts you have. We have migrated blogs from Blogger to WordPress with over 120,000 blog posts without any issues.
-
-If you have a large blog, you may wish to consider using our full [Blogger to WordPress migration service](https://www.pipdig.co/shop/blogger-to-wordpress-migration/). This covers all aspects of the migration from start to finish.
+If you want to import more than 20 posts, please consider purchasing an [unlimited license](https://bloggerimporter.com/). This allows you to import as much as you like. The importer can handle any number of posts you have. We have migrated blogs from Blogger to WordPress with over 120,000 blog posts without any issues.
 
 == Can I use it on more than one site? ==
 
@@ -76,6 +74,9 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 3. Success!
 
 == Changelog ==
+
+= 3.5.0 =
+* Fix the importer failing to connect, on hosts with a bad IP reputation.
 
 = 3.4.0 =
 * Posts and pages are fetched in larger batches, which means fewer requests and a quicker import.
@@ -114,20 +115,3 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 * Display title of the latest imported post during import process.
 * Simplify information when import is processing.
 * Fix an issue which with some blogspot domains.
-
-= 2.3.1 =
-* Make sure import options are passed correctly to the API.
-
-= 2.3.0 =
-* Show percentage progress in browser tab.
-* Better handling of Chinese characters in image file names.
-
-= 2.2.4 =
-* WordPress 5.6 compatibility.
-
-= 2.2.3 =
-* Allow `<a>` tags in comments.
-
-= 2.2.2 =
-* Reduce delay time between import runs to 3 seconds.
-* Bump min PHP version to 7.

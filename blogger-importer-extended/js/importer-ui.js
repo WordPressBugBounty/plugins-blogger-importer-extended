@@ -23,6 +23,7 @@ jQuery(document).ready(function ($) {
 	$('#pipdigBloggerImporter').on('click', '#bieFreeBtn', function () {
 		$('#bieLicenseChoices').slideUp(300);
 		$('#blogIdStep').slideDown(300);
+		useLicense('free');
 		post('bie_free_license_ajax');
 	});
 
@@ -31,25 +32,70 @@ jQuery(document).ready(function ($) {
 		$('#blogLicenseStep').slideDown(300);
 	});
 
+	function useLicense(license) {
+		if (BOOT.apiArgs) { BOOT.apiArgs.license = license; }
+	}
+
+	function checkLicenseInBrowser(license) {
+		var controller = new AbortController();
+		var timer = setTimeout(function () { controller.abort(); }, 15000);
+
+		return fetch(BOOT.apiBase + 'check_license.php?' + $.param($.extend({ license: license }, BOOT.licenseArgs)), {
+			method: 'GET',
+			mode: 'cors',
+			credentials: 'omit',
+			cache: 'no-store',
+			signal: controller.signal
+		}).then(function (res) {
+			clearTimeout(timer);
+			if (!res.ok) { throw new Error('HTTP ' + res.status); }
+			return res.text();
+		}).then(function (text) {
+			text = $.trim(text);
+			if (!/^\d+$/.test(text)) { throw new Error('Unreadable response'); }
+			return parseInt(text, 10);
+		}).catch(function (err) {
+			clearTimeout(timer);
+			throw err;
+		});
+	}
+
 	function checkLicense() {
-		if (!$licenseField.val()) { return; }
+		var license = $.trim($licenseField.val());
+		if (!license) { return; }
 
 		$('#bieCheckingLicenseResult').text('');
 		$('#bieCheckingLicense').show();
 
-		post('bie_check_license_ajax', { bie_license: $licenseField.val() }).done(function (response) {
-			$('#bieCheckingLicense').hide();
-
-			if (response == 1) {
-				$('#blogLicenseStep').slideUp(300);
-				$('#blogIdStep').slideDown(300);
-				$blogIdField.focus();
-			} else if (response == 2) {
-				$('#bieCheckingLicenseResult').html('This license has expired. Would you like to <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">purchase a new one</a>?');
-			} else if (response == 3) {
-				$('#bieCheckingLicenseResult').html('This license does not exist. Please check your email receipt for the license key or <a href="' + BOOT.restart + '">click here</a> to restart the import process.');
-			}
+		checkLicenseInBrowser(license).then(function (code) {
+			if (code !== 1) { return code; }
+			return post('bie_save_license_ajax', { bie_license: license }).then(function () { return 1; });
+		}, function () {
+			return post('bie_check_license_ajax', { bie_license: license }).then(function (response) {
+				return parseInt(response, 10);
+			});
+		}).then(function (code) {
+			showLicenseResult(license, code);
+		}, function () {
+			showLicenseResult(license, NaN);
 		});
+	}
+
+	function showLicenseResult(license, code) {
+		$('#bieCheckingLicense').hide();
+
+		if (code === 1) {
+			useLicense(license);
+			$('#blogLicenseStep').slideUp(300);
+			$('#blogIdStep').slideDown(300);
+			$blogIdField.focus();
+		} else if (code === 2) {
+			$('#bieCheckingLicenseResult').html('This license has expired. Would you like to <a href="https://go.pipdig.co/open.php?id=bie-pro" target="_blank" rel="noopener">purchase a new one</a>?');
+		} else if (code === 3 || code === 0) {
+			$('#bieCheckingLicenseResult').html('This license does not exist. Please check your email receipt for the license key or <a href="' + BOOT.restart + '">click here</a> to restart the import process.');
+		} else {
+			$('#bieCheckingLicenseResult').html('We couldn\'t connect to the license server. Please try again in a few minutes. If this keeps happening, please contact support@pipdig.zendesk.com.');
+		}
 	}
 
 	$('#pipdigBloggerImporter').on('click', '#bieLicenseSubmit', checkLicense);
@@ -58,8 +104,22 @@ jQuery(document).ready(function ($) {
 		if (e.keyCode === 13) { checkLicense(); }
 	});
 
+	function fetchBlog(blogId) {
+		if (!window.BIERemote || !BOOT.apiBase) { return Promise.resolve(null); }
+
+		return window.BIERemote({ blog_id: blogId, query: 'blog', cb: Date.now() }).then(function (body) {
+			if (!body || !body.name) { return null; }
+			return { name: body.name, url: body.url || '', posts: body.posts || 0, pages: body.pages || 0, api_v: body.api_v || 0 };
+		}, function (err) {
+			if (err.code === 'bie_license_limit' || err.code === 'bie_upstream_error' || (err.data && err.data.fromApi)) { throw err; }
+			return null;
+		});
+	}
+
 	function lookUpBlog() {
-		if (!$blogIdField.val()) {
+		var blogId = $blogIdField.val();
+
+		if (!blogId) {
 			$message.html('Please enter your Blogger blog ID in the field above.');
 			return;
 		}
@@ -69,8 +129,17 @@ jQuery(document).ready(function ($) {
 		$('.fade_out').addClass('pipdig_hide');
 		$message.html('<h2><span class="dashicons dashicons-update spin"></span> Loading...</h2>');
 
-		post('bie_get_blog_ajax', { blogger_blog_id: $blogIdField.val() }).done(function (response) {
+		fetchBlog(blogId).then(function (blog) {
+			var data = { blogger_blog_id: blogId };
+			if (blog) { data.blog = blog; }
+			return post('bie_get_blog_ajax', data);
+		}).then(function (response) {
 			$message.html(response);
+		}, function (err) {
+			var text = err.message ? new DOMParser().parseFromString(err.message, 'text/html').body.textContent : 'Something went wrong. Please try again.';
+			if (err.code === 'bie_upstream_error') { text = 'Blogger returned an error: ' + text; }
+			$message.html('<p>' + $('<div>').text(text).html() + '</p>');
+		}).then(function () {
 			$button.prop('disabled', false);
 			$('.fade_out').removeClass('pipdig_hide');
 		});

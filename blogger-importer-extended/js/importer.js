@@ -92,7 +92,7 @@
 				}
 				if (body && body.message) {
 					if (res.status >= 500) {
-						throw BieError('bie_upstream_unavailable', res.status, body.message);
+						throw BieError('bie_upstream_unavailable', res.status, body.message, { fromApi: true });
 					}
 					throw BieError('bie_license_limit', 403, body.message);
 				}
@@ -197,6 +197,12 @@
 		this.lastSettled = Date.now();
 	};
 
+	Importer.prototype.dropDirect = function () {
+		if (!this.direct) { return; }
+		this.direct = false;
+		this.warn('bie_direct_unavailable', 'Reading via the server instead.', '');
+	};
+
 	Importer.prototype.handleItem = function (item, type) {
 		var self = this;
 
@@ -245,15 +251,42 @@
 		var self = this;
 		var token = '';
 
-		function page() {
-			return withRetry(function () {
+		function viaServer() {
+			return rest('/comments', {
+				blog_id: self.blogId,
+				post_id: postId,
+				blogger_post_id: bloggerPostId,
+				page_token: token
+			}, 'batch');
+		}
+
+		function fetchPage() {
+			if (!self.direct) { return viaServer(); }
+
+			return remoteFetch({
+				blog_id: self.blogId,
+				query: 'comments',
+				post_id: bloggerPostId,
+				page_token: token
+			}, 'batch').then(function (body) {
 				return rest('/comments', {
 					blog_id: self.blogId,
 					post_id: postId,
 					blogger_post_id: bloggerPostId,
-					page_token: token
-				}, 'batch');
-			}, 'default').then(function (res) {
+					items: (body && body.items) || []
+				}).then(function (res) {
+					res.next_page_token = (body && body.nextPageToken) || '';
+					return res;
+				});
+			}, function (err) {
+				if (err.code !== 'bie_direct_unavailable') { throw err; }
+				self.dropDirect();
+				return viaServer();
+			});
+		}
+
+		function page() {
+			return withRetry(fetchPage, 'default').then(function (res) {
 				self.touch();
 				self.counts.comments += res.inserted;
 				self.ui.progress(self.counts);
@@ -334,8 +367,7 @@
 					};
 				}).catch(function (err) {
 					if (err.code !== 'bie_direct_unavailable') { throw err; }
-					self.direct = false;
-					self.warn('bie_direct_unavailable', 'Reading via the server instead.', '');
+					self.dropDirect();
 					return viaServer();
 				});
 			}
@@ -460,5 +492,6 @@
 
 	window.BIEImporter = Importer;
 	window.BIERest = rest;
+	window.BIERemote = remoteFetch;
 
 })();

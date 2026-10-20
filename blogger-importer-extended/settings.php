@@ -146,7 +146,7 @@ function bie_settings_page_render() {
 			
 			<h2>3. Redirect traffic from Blogger</h2>
 			
-			<p>After transferring to WordPress, the last step is to install a new template on your old Blogger blog. This will redirect all your old blogspot links to this new site. <a href="https://go.pipdig.co/open.php?id=bie-blogger-template" target="_blank" rel="noopener">Click here</a> for instructions on how to install the template.</p>
+			<p>After transferring to WordPress, the last step is to install a new template on your old Blogger blog. This will redirect all your old blogspot links to this new site. <a href="https://bloggerimporter.com/blogger-template-xml-file.html" target="_blank" rel="noopener">Click here</a> for instructions on how to install the template.</p>
 			
 			<p style="margin-top: 25px;"><span class="button" id="downloadTemplateBtn">Download Template</span></p>
 			
@@ -190,7 +190,7 @@ URL: https://www.pipdig.co
 		</div>
 		
 		<div class="card">
-			<p>Have you found this <?php if (!get_option('bie_license') || get_option('bie_license') == 'free') echo 'free '; ?>plugin useful? Please consider <a href="https://go.pipdig.co/open.php?id=bie-rev" target="_blank" rel="noopener" style="text-decoration:none">leaving a &#9733;&#9733;&#9733;&#9733;&#9733; review</a>.</p>
+			<p>Have you found this <?php if (!get_option('bie_license') || get_option('bie_license') == 'free') echo 'free '; ?>plugin useful? Please consider <a href="https://wordpress.org/support/plugin/blogger-importer-extended/reviews/?rate=5#new-post" target="_blank" rel="noopener" style="text-decoration:none">leaving a &#9733;&#9733;&#9733;&#9733;&#9733; review</a>.</p>
 			<p>Not happy with the plugin? Please contact support@pipdig.zendesk.com and we may be able to help.</p>
 		</div>
 		

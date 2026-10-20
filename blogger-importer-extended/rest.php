@@ -79,6 +79,7 @@ add_action('rest_api_init', function() {
 			'post_id'         => array('required' => true),
 			'blogger_post_id' => array('required' => true),
 			'page_token'      => array('default' => ''),
+			'items'           => array('default' => null),
 		),
 	)));
 
@@ -402,12 +403,24 @@ function bie_rest_comments(WP_REST_Request $request) {
 
 	bie_prepare_import_env();
 
-	$result = bie_import_comment_page(
-		absint($request['post_id']),
-		sanitize_text_field($request['blog_id']),
-		sanitize_text_field($request['blogger_post_id']),
-		(string) $request['page_token']
-	);
+	$post_id = absint($request['post_id']);
+
+	if (!$post_id || !get_post($post_id)) {
+		return new WP_Error('bie_missing_post', __('Post no longer exists.', 'blogger-importer-extended'), array('status' => 404));
+	}
+
+	$items = $request['items'];
+
+	if (is_array($items)) {
+		$result = bie_insert_comment_page($post_id, json_decode(wp_json_encode($items)));
+	} else {
+		$result = bie_import_comment_page(
+			$post_id,
+			sanitize_text_field($request['blog_id']),
+			sanitize_text_field($request['blogger_post_id']),
+			(string) $request['page_token']
+		);
+	}
 
 	if (is_wp_error($result)) {
 		return $result;
