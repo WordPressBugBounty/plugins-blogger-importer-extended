@@ -1,5 +1,5 @@
 === Blogger Importer Extended ===
-Contributors: pipdig, lavoieltd
+Contributors: lavoieltd
 Tags: blogger, blogspot, importer, import
 Requires at least: 5.8
 Tested up to: 7.1
@@ -75,7 +75,7 @@ This plugin connects to your Blogger/Blogspot blog via the Google Blogger API. W
 
 == Changelog ==
 
-= 3.5.0 =
+= 3.5.1 =
 * Fix the importer failing to connect, on hosts with a bad IP reputation.
 
 = 3.4.0 =

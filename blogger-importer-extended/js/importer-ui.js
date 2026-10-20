@@ -158,6 +158,17 @@ jQuery(document).ready(function ($) {
 		if (this.checked) { $('#andPages').fadeOut(); } else { $('#andPages').fadeIn(); }
 	});
 
+	$('#pipdigBloggerImporter').on('click', '.bie_info_icon', function () {
+		var dialog = document.getElementById($(this).data('dialog'));
+		if (dialog && dialog.showModal) { dialog.showModal(); }
+	});
+
+	$('#pipdigBloggerImporter').on('click', '.bie_help_dialog', function (e) {
+		if (e.target === this || $(e.target).closest('.bie_help_dialog_close').length) {
+			this.close();
+		}
+	});
+
 
 	function readOptions() {
 		return {

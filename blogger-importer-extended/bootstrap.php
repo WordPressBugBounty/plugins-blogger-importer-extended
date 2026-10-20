@@ -3,16 +3,16 @@
 Plugin Name: Blogger Importer Extended
 Plugin URI: https://wordpress.org/plugins/blogger-importer-extended/
 Description: The only plugin you need to move from Blogger to WordPress. Import all content and setup 301 redirects automatically.
-Author: pipdig
-Version: 3.5.0
-Author URI: https://www.pipdig.co/
+Author: lavoieltd
+Version: 3.5.1
+Author URI: https://www.bloggerimporter.com/
 License: GPLv2 or later
 Text Domain: blogger-importer-extended
 */
 
 if (!defined('ABSPATH')) die;
 
-define('BIE_VER', '3.5.0');
+define('BIE_VER', '3.5.1');
 define('BIE_DOMAIN', 'bie.ppdg.eco');
 define('BIE_DIR', plugin_dir_path(__FILE__));
 define('BIE_PATH', plugin_dir_url(__FILE__));
@@ -371,6 +371,22 @@ add_action('wp_ajax_bie_check_license_ajax', function() {
 });
 
 
+function bie_help_button($dialog_id) {
+	return '<button type="button" class="bie_info_icon" data-dialog="'.esc_attr($dialog_id).'" aria-label="More information"><span class="dashicons dashicons-editor-help"></span></button>';
+}
+
+
+function bie_help_dialog($dialog_id, $title, $content) {
+	echo '<dialog id="'.esc_attr($dialog_id).'" class="bie_help_dialog" aria-labelledby="'.esc_attr($dialog_id).'Title">';
+	echo '<div class="bie_help_dialog_inner">';
+	echo '<button type="button" class="bie_help_dialog_close" aria-label="Close"><span class="dashicons dashicons-no-alt"></span></button>';
+	echo '<h2 id="'.esc_attr($dialog_id).'Title">'.esc_html($title).'</h2>';
+	echo $content;
+	echo '</div>';
+	echo '</dialog>';
+}
+
+
 add_action('wp_ajax_bie_get_blog_ajax', function() {
 
 	check_ajax_referer('bie_ajax_nonce', 'sec');
@@ -430,10 +446,32 @@ add_action('wp_ajax_bie_get_blog_ajax', function() {
 			echo '<p class="fade_out">Import '.absint($response->posts).' posts<span id="andPages"> and '.absint($response->pages).' pages</span> from <a href="'.esc_url($response->url).'" target="_blank" rel="noopener">'.esc_html($site_url).'</a>.</p>';
 			echo '<p style="margin-bottom: 10px;"><em>Please note that Draft & Scheduled posts are not imported.</em></p>';
 			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipPages" name="skipPages" value="1" title="If you only want to import blog posts and not pages, select this option"> Don\'t import pages.</label></div>';
-			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipComments" name="skipComments" value="1"> Don\'t import post comments</label> <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener" class="bie_info_icon" title="If you do not wish to keep old comments, select this option to speed up the import"><span class="dashicons dashicons-editor-help"></span></a></div>';
-			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipImages" name="skipImages" value="1"> Don\'t import images</label> <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener" class="bie_info_icon" title="This option will greatly speed up the import. Please note the images will remain on your Google/Blogspot account and not be imported to WordPress, but will be visible in post and page content as normal"><span class="dashicons dashicons-editor-help"></span></a></div>';
-			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipAuthors" name="skipAuthors" value="1"> Don\'t import authors</label> <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener" class="bie_info_icon" title="If you are the only author of this blog, we recommend enabling this option"><span class="dashicons dashicons-editor-help"></span></a></div>';
-			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="convertFormatting" name="convertFormatting" value="1"> Try to clean-up post content</label> <a href="https://support.pipdig.co/articles/blogger-importer-extended-faq/" target="_blank" rel="noopener" class="bie_info_icon" title="Click here for more information"><span class="dashicons dashicons-editor-help"></span></a></div>';
+			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipComments" name="skipComments" value="1"> Don\'t import post comments</label> '.bie_help_button('bieHelpComments').'</div>';
+			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipImages" name="skipImages" value="1"> Don\'t import images</label> '.bie_help_button('bieHelpImages').'</div>';
+			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="skipAuthors" name="skipAuthors" value="1"> Don\'t import authors</label> '.bie_help_button('bieHelpAuthors').'</div>';
+			echo '<div style="margin-bottom: 10px;"><label><input type="checkbox" id="convertFormatting" name="convertFormatting" value="1"> Try to clean-up post content</label> '.bie_help_button('bieHelpFormatting').'</div>';
+
+			bie_help_dialog('bieHelpComments', 'Don\'t import post comments', '
+				<p>If you don\'t need to keep your old comments, select this option to speed up the import.</p>
+				<p>Importing comments can also cause problems on some hosts, because it can trigger their spam filter rules. If the import keeps losing its connection, try again with this option enabled.</p>
+			');
+			bie_help_dialog('bieHelpImages', 'Don\'t import images', '
+				<p>If this option is enabled, any images in posts and pages will remain hosted by Google. They will still show in your post and page content as normal. We recommend enabling this option as it has some key benefits:</p>
+				<ol>
+					<li>Images on your blog will not take up space on your new WordPress host.</li>
+					<li>Your site will load faster.</li>
+					<li>The import will complete much faster.</li>
+				</ol>
+				<p>Please note, you should not delete your Google account after completing a migration from Blogger. This allows the redirects to work, as well as keeping the images hosted if you choose not to import them to WordPress.</p>
+			');
+			bie_help_dialog('bieHelpAuthors', 'Don\'t import authors', '
+				<p>Enable this option to assign all imported content to the currently logged in user. If you are the only author of the blog, you should enable this option.</p>
+			');
+			bie_help_dialog('bieHelpFormatting', 'Try to clean-up post content', '
+				<p>Blogger post and page content is not well formatted. By selecting this option, imported content will be converted to WordPress standards. This makes the content easier to edit with the WordPress block editor. However, it may have unexpected results if your content is complex, for example if you use a lot of HTML tables or advanced formatting.</p>
+				<p>When this option is not enabled, all content imported from Blogger is left alone and is exactly the same HTML as in the Blogger editor.</p>
+				<p>If you do not plan on editing any imported posts after importing to WordPress, we recommend leaving this option disabled.</p>
+			');
 		} else {
 			echo '<p class="fade_out">Import up to 20 posts and pages</span> from <a href="'.esc_url($response->url).'" target="_blank" rel="noopener">'.esc_html($site_url).'</a>.</p>';
 			echo '<p style="margin-bottom: 10px;">Want to import more content? Purchase an <a href="https://bloggerimporter.com/" target="_blank" rel="noopener">unlimited license</a> for unlimited inports.</p>';

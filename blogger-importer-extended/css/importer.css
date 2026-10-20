@@ -84,7 +84,63 @@ input.fade_out, .fade_out {
 	}
 }
 .bie_info_icon {
-	text-decoration: none;
+	background: none;
+	border: 0;
+	padding: 0;
+	color: #2271b1;
+	cursor: pointer;
+	vertical-align: middle;
+}
+.bie_info_icon:hover {
+	color: #135e96;
+}
+
+/* Help dialogs for the import options. The padding is on the inner div so a
+   click on the dialog element itself can only be the backdrop. */
+.bie_help_dialog {
+	width: 480px;
+	max-width: calc(100% - 32px);
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	box-shadow: 0 5px 25px rgba(0, 0, 0, .3);
+	text-align: left;
+}
+.bie_help_dialog::backdrop {
+	background: rgba(0, 0, 0, .5);
+}
+.bie_help_dialog_inner {
+	position: relative;
+	padding: 24px;
+}
+.bie_help_dialog p,
+.bie_help_dialog li {
+	font-size: 14px;
+	line-height: 1.6;
+}
+.bie_help_dialog h2 {
+	margin: 0 30px 12px 0;
+}
+.bie_help_dialog p:last-child {
+	margin-bottom: 0;
+}
+.bie_help_dialog_close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	background: none;
+	border: 0;
+	padding: 0;
+	color: #50575e;
+	cursor: pointer;
+}
+.bie_help_dialog_close:hover {
+	color: #1d2327;
+}
+.bie_help_dialog_close .dashicons {
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
 }
 #postImportProgress {
 	margin-top: 25px;
